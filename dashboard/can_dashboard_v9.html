@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAN Network Monitor</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root {
+  --bg:        #080a0d;
+  --surface:   #0f1115;
+  --surface2:  #161a1f;
+  --border:    #1e2229;
+  --border2:   #252b33;
+  --text:      #e8eaed;
+  --muted:     #6b717a;
+  --dim:       #3a3f47;
+  --blue:      #3d8ef0;
+  --blue-dim:  #1a3a6a;
+  --green:     #2ecc71;
+  --green-dim: #0f3d25;
+  --orange:    #f0943d;
+  --teal:      #2ec4b6;
+  --teal-dim:  #0d302d;
+  --red:       #e05555;
+  --red-dim:   #3d1010;
+  --yellow:    #f0c93d;
+  --r: 8px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.dash {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto auto auto 1fr;
+  gap: 6px;
+  padding: 7px;
+}
+
+/* ── Header ── */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 8px 14px;
+}
+.header-left { display: flex; align-items: center; gap: 10px; }
+.hico {
+  width: 34px; height: 34px; border-radius: 8px;
+  background: var(--blue-dim); border: 1px solid var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; color: var(--blue); flex-shrink: 0;
+}
+.htitle { font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
+.hsub   { font-size: 10px; color: var(--muted); margin-top: 1px; font-family: ui-monospace, monospace; }
+.header-right { display: flex; align-items: center; gap: 7px; }
+
+.spill {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 700; padding: 3px 9px;
+  border-radius: 20px; letter-spacing: .05em; text-transform: uppercase;
+}
+.spill.demo  { background:#2a1f08; color:var(--yellow); border:1px solid #4a3510; }
+.spill.live  { background:var(--green-dim); color:var(--green); border:1px solid #1a5c35; }
+.spill.error { background:var(--red-dim); color:var(--red); border:1px solid #5c2020; }
+.pdot { width:5px; height:5px; border-radius:50%; background:currentColor; }
+.pdot.blink { animation: blink 1.2s ease-in-out infinite; }
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+.cbtn {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 500; padding: 5px 12px;
+  border-radius: 7px; border: 1px solid var(--border2);
+  background: var(--surface2); color: var(--text);
+  cursor: pointer; transition: background .15s;
+}
+.cbtn:hover { background: var(--border2); }
+.cbtn.on { border-color: #1a5c35; color: var(--green); }
+
+/* ── Fault toast ── */
+#fault-toast {
+  position: fixed; top: 14px; left: 50%; transform: translateX(-50%) translateY(-80px);
+  background: var(--red-dim); border: 1px solid var(--red);
+  border-radius: 8px; padding: 8px 16px;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 600; color: var(--red);
+  z-index: 999; transition: transform .35s cubic-bezier(.34,1.56,.64,1);
+  white-space: nowrap; pointer-events: none;
+}
+#fault-toast.show { transform: translateX(-50%) translateY(0); }
+#fault-toast i { font-size: 16px; }
+
+/* ── Sensor bar ── */
+.sensor-bar {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 6px 12px;
+}
+.slabel { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin-right: 2px; }
+.schip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 700; padding: 3px 9px;
+  border-radius: 5px; border: 1px solid var(--border2);
+  background: var(--surface2); color: var(--muted);
+  transition: all .35s; letter-spacing: .03em; cursor: default;
+}
+.schip i { font-size: 11px; }
+.schip .chip-status { font-size: 9px; font-weight: 700; margin-left: 2px; }
+
+/* OK */
+.schip.ok { background:var(--green-dim); color:var(--green); border-color:#1a5c35; }
+
+/* Transmission fault — red pulsing (no CAN frame >1s) */
+.schip.tx-fault {
+  background:var(--red-dim); color:var(--red); border-color:#5c2020;
+  animation: chipPulse 1.5s ease-in-out infinite;
+}
+/* Sensor fault — orange pulsing (zero/invalid value) */
+.schip.sen-fault {
+  background:#3d2510; color:var(--orange); border-color:#5c3010;
+  animation: chipPulseOrange 1.5s ease-in-out infinite;
+}
+@keyframes chipPulse {
+  0%,100%{ box-shadow: 0 0 0 0 rgba(224,85,85,0); }
+  50%    { box-shadow: 0 0 0 4px rgba(224,85,85,0.25); }
+}
+@keyframes chipPulseOrange {
+  0%,100%{ box-shadow: 0 0 0 0 rgba(240,148,61,0); }
+  50%    { box-shadow: 0 0 0 4px rgba(240,148,61,0.25); }
+}
+
+/* CSV export button */
+.export-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 600; padding: 3px 10px;
+  border-radius: 5px; border: 1px solid var(--border2);
+  background: var(--surface2); color: var(--muted);
+  cursor: pointer; transition: background .15s, color .15s;
+  margin-left: auto;
+}
+.export-btn:hover { background: var(--border2); color: var(--text); }
+.export-btn i { font-size: 11px; }
+
+/* legend row under sensor bar */
+.fault-legend {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 9px; color: var(--dim);
+}
+.fl-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 3px; }
+
+/* ── Log ── */
+.log-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 6px 12px;
+}
+.log-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+.log-title { font-size: 9px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; display: flex; align-items: center; gap: 4px; }
+.log-stats { font-size: 10px; color: var(--dim); }
+.log-box {
+  font-family: ui-monospace, Menlo, monospace; font-size: 10.5px;
+  line-height: 1.65; height: 56px; overflow-y: auto;
+}
+.log-box::-webkit-scrollbar { width: 3px; }
+.log-box::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+.log-empty { color: var(--dim); }
+.log-row { display: flex; gap: 7px; padding: 1px 0; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.log-row.has-fault { background: rgba(224,85,85,0.06); }
+.log-row:last-child { border-bottom: none; }
+.log-time { color: var(--dim); flex-shrink: 0; width: 76px; }
+.lv  { color: var(--teal); }
+.lvf  { color: var(--red);    font-weight: 700; }
+.lvfo { color: var(--orange); font-weight: 700; }
+.ls  { color: var(--dim); }
+
+/* ── Main ── */
+.main {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 6px;
+  min-height: 0;
+}
+
+/* ── Metric cards ── */
+.metrics {
+  display: grid;
+  grid-template-rows: repeat(4, 1fr);
+  gap: 6px;
+  min-height: 0;
+}
+.mc {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 9px 12px;
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: space-between;
+  transition: border-color .35s;
+}
+.mc::before {
+  content:''; position:absolute; top:0; left:0;
+  width:100%; height:2px; border-radius:var(--r) var(--r) 0 0;
+  transition: background .35s;
+}
+.mc.blue::before   { background:var(--blue); }
+.mc.orange::before { background:var(--orange); }
+.mc.green::before  { background:var(--green); }
+.mc.teal::before   { background:var(--teal); }
+/* fault state overrides top bar + border */
+.mc.faulted { border-color: rgba(224,85,85,0.5); }
+.mc.faulted::before { background: var(--red) !important; }
+
+.mlbl {
+  font-size: 9px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .07em;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.mico { font-size: 13px; }
+.blue   .mico { color:var(--blue); }
+.orange .mico { color:var(--orange); }
+.green  .mico { color:var(--green); }
+.teal   .mico { color:var(--teal); }
+
+/* fault badge inside card */
+.fault-badge {
+  display: none; align-items: center; gap: 3px;
+  font-size: 9px; font-weight: 700; color: var(--red);
+  background: var(--red-dim); border: 1px solid #5c2020;
+  border-radius: 4px; padding: 1px 6px; letter-spacing: .04em;
+}
+.fault-badge i { font-size: 10px; }
+.mc.faulted .fault-badge { display: inline-flex; }
+
+.mval { font-size: 26px; font-weight: 700; line-height: 1; letter-spacing: -.02em; transition: color .35s; }
+.mc.faulted .mval { color: var(--muted); }
+.munit { font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 2px; }
+.mbar { width:100%; height:2px; background:var(--border2); border-radius:2px; overflow:hidden; }
+.mfill { height:100%; border-radius:2px; transition:width .6s cubic-bezier(.4,0,.2,1); width:0; }
+.blue   .mfill { background:var(--blue); }
+.orange .mfill { background:var(--orange); }
+.green  .mfill { background:var(--green); }
+.teal   .mfill { background:var(--teal); }
+.mc.faulted .mfill { background: var(--red) !important; width: 100% !important; }
+
+.mfoot { font-size: 10px; color: var(--muted); display:flex; align-items:center; gap:3px; }
+
+/* ── Right area ── */
+.right {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 6px;
+  min-height: 0;
+}
+.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; min-height: 0; }
+.imu-row    { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; min-height: 0; }
+
+/* ── Card ── */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r); padding: 9px 12px;
+  display: flex; flex-direction: column; min-height: 0;
+}
+.card-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; flex-shrink:0; }
+.card-title {
+  font-size: 9px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .07em;
+  display: flex; align-items: center; gap: 4px;
+}
+.card-val { font-size: 11px; font-weight: 600; color: var(--text); }
+.chart-wrap { flex: 1; position: relative; min-height: 0; }
+.leg { display:flex; gap:8px; }
+.leg span { display:flex; align-items:center; gap:3px; font-size:10px; color:var(--muted); }
+.leg b { width:8px; height:2px; display:inline-block; border-radius:1px; }
+
+/* IMU */
+.brow { display:flex; align-items:center; gap:6px; margin-bottom:5px; }
+.bax  { font-size:9px; font-weight:700; color:var(--muted); width:16px; text-align:right; flex-shrink:0; }
+.btrack { flex:1; height:6px; background:var(--border2); border-radius:3px; position:relative; overflow:hidden; }
+.bfill  { position:absolute; top:0; bottom:0; border-radius:3px; transition:left .3s,width .3s; }
+.bmid   { position:absolute; left:50%; top:0; bottom:0; width:1px; background:var(--dim); }
+.bnum   { font-size:10px; font-weight:600; color:var(--text); width:38px; text-align:right; flex-shrink:0; font-family:ui-monospace,monospace; }
+
+/* IMU fault overlay */
+.imu-fault-overlay {
+  display: none; position: absolute; inset: 0;
+  background: rgba(224,85,85,0.08); border-radius: var(--r);
+  align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: var(--red);
+  gap: 5px; pointer-events: none;
+}
+.imu-fault-overlay i { font-size: 14px; }
+.card.imu-faulted .imu-fault-overlay { display: flex; }
+.card.imu-faulted .brow, .card.imu-faulted .divider, .card.imu-faulted .cells { opacity: .25; }
+.card { position: relative; }
+
+.divider { height:1px; background:var(--border); margin:5px 0; flex-shrink:0; }
+.cells { display:grid; grid-template-columns:repeat(3,1fr); gap:4px; flex-shrink:0; }
+.cell { background:var(--surface2); border-radius:5px; padding:4px 5px; text-align:center; }
+.clbl { font-size:8px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+.cnum { font-size:13px; font-weight:700; color:var(--text); font-family:ui-monospace,monospace; }
+.cunit{ font-size:8px; color:var(--dim); }
+</style>
+</head>
+<body>
+
+<!-- Fault toast -->
+<div id="fault-toast"><i class="ti ti-alert-triangle"></i><span id="toast-msg">FAULT detected</span></div>
+
+<div class="dash">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="hico"><i class="ti ti-cpu"></i></div>
+      <div>
+        <div class="htitle">CAN Network Monitor</div>
+        <div class="hsub">STM32F4 · MPU6050 · DHT11 · DS18B20 · Speed ECU · fault detection</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="spill demo" id="conn-pill"><span class="pdot" id="conn-dot"></span><span id="conn-txt">Demo</span></div>
+      <button class="cbtn" id="conn-btn" onclick="doConnect()">
+        <i class="ti ti-plug" style="font-size:12px"></i><span id="btn-txt">Connect serial</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Sensor status bar -->
+  <div class="sensor-bar">
+    <span class="slabel">Sensors</span>
+    <div class="schip" id="sc-mpu"><i class="ti ti-cpu"></i>MPU6050&nbsp;<span class="chip-status" id="st-mpu">—</span></div>
+    <div class="schip" id="sc-dht"><i class="ti ti-droplet"></i>DHT11&nbsp;<span class="chip-status" id="st-dht">—</span></div>
+    <div class="schip" id="sc-ds" ><i class="ti ti-thermometer"></i>DS18B20&nbsp;<span class="chip-status" id="st-ds">—</span></div>
+    <div class="schip" id="sc-spd"><i class="ti ti-gauge"></i>SpeedECU&nbsp;<span class="chip-status" id="st-spd">—</span></div>
+    <div class="fault-legend">
+      <span><span class="fl-dot" style="background:var(--red)"></span>TX Fault</span>
+      <span><span class="fl-dot" style="background:var(--orange)"></span>Sensor Fault</span>
+    </div>
+    <button class="export-btn" onclick="exportCSV()"><i class="ti ti-download"></i>Export CSV</button>
+  </div>
+
+  <!-- Log -->
+  <div class="log-card">
+    <div class="log-header">
+      <div class="log-title"><i class="ti ti-terminal-2"></i>Serial stream</div>
+      <div class="log-stats" id="log-stats">Packets: 0</div>
+    </div>
+    <div class="log-box" id="log-box">
+      <div class="log-empty">Waiting — click "Connect serial" and select your STM32 COM port (115200 baud).</div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Left: 4 metric cards -->
+    <div class="metrics">
+
+      <div class="mc blue" id="mc-spd">
+        <div class="mlbl">
+          Speed <span style="display:flex;align-items:center;gap:4px"><span class="fault-badge"><i class="ti ti-alert-triangle"></i>FAULT</span><i class="ti ti-gauge mico"></i></span>
+        </div>
+        <div><span class="mval" id="v-spd">—</span><span class="munit">km/h</span></div>
+        <div class="mbar"><div class="mfill" id="p-spd"></div></div>
+        <div class="mfoot" id="f-spd"><i class="ti ti-minus" style="font-size:10px"></i>&nbsp;—</div>
+      </div>
+
+      <div class="mc orange" id="mc-temp">
+        <div class="mlbl">
+          DHT11 Temp <span style="display:flex;align-items:center;gap:4px"><span class="fault-badge"><i class="ti ti-alert-triangle"></i>FAULT</span><i class="ti ti-temperature mico"></i></span>
+        </div>
+        <div><span class="mval" id="v-temp">—</span><span class="munit">°C</span></div>
+        <div class="mbar"><div class="mfill" id="p-temp"></div></div>
+        <div class="mfoot"><i class="ti ti-droplet" style="font-size:10px;color:var(--blue)"></i>&nbsp;<span id="f-hum">Humidity —%</span></div>
+      </div>
+
+      <div class="mc green" id="mc-hum">
+        <div class="mlbl">
+          Humidity <span style="display:flex;align-items:center;gap:4px"><span class="fault-badge"><i class="ti ti-alert-triangle"></i>FAULT</span><i class="ti ti-droplet mico"></i></span>
+        </div>
+        <div><span class="mval" id="v-hum">—</span><span class="munit">%</span></div>
+        <div class="mbar"><div class="mfill" id="p-hum"></div></div>
+        <div class="mfoot"><i class="ti ti-circle-check" style="font-size:10px;color:var(--green)"></i>&nbsp;DHT11 sensor</div>
+      </div>
+
+      <div class="mc teal" id="mc-ds">
+        <div class="mlbl">
+          DS18B20 <span style="display:flex;align-items:center;gap:4px"><span class="fault-badge"><i class="ti ti-alert-triangle"></i>FAULT</span><i class="ti ti-thermometer mico"></i></span>
+        </div>
+        <div><span class="mval" id="v-ds">—</span><span class="munit">°C</span></div>
+        <div class="mbar"><div class="mfill" id="p-ds"></div></div>
+        <div class="mfoot"><i class="ti ti-point-filled" style="font-size:10px;color:var(--teal)"></i>&nbsp;DS18B20 Temperature</div>
+      </div>
+
+    </div>
+
+    <!-- Right: charts + IMU -->
+    <div class="right">
+
+      <div class="imu-row">
+
+        <div class="card" id="card-acc">
+          <div class="imu-fault-overlay"><i class="ti ti-alert-triangle"></i>MPU6050 FAULT</div>
+          <div class="card-hdr"><div class="card-title"><i class="ti ti-vector"></i>Accelerometer</div><span style="font-size:9px;color:var(--dim)">g</span></div>
+          <div class="brow"><span class="bax">AX</span><div class="btrack"><div class="bmid"></div><div class="bfill" id="b-ax" style="background:var(--blue)"></div></div><span class="bnum" id="n-ax">—</span></div>
+          <div class="brow"><span class="bax">AY</span><div class="btrack"><div class="bmid"></div><div class="bfill" id="b-ay" style="background:var(--blue)"></div></div><span class="bnum" id="n-ay">—</span></div>
+          <div class="brow"><span class="bax">AZ</span><div class="btrack"><div class="bmid"></div><div class="bfill" id="b-az" style="background:var(--blue)"></div></div><span class="bnum" id="n-az">—</span></div>
+          <div class="divider"></div>
+          <div class="cells">
+            <div class="cell"><div class="clbl">AX</div><div class="cnum" id="c-ax">—</div><div class="cunit">g</div></div>
+            <div class="cell"><div class="clbl">AY</div><div class="cnum" id="c-ay">—</div><div class="cunit">g</div></div>
+            <div class="cell"><div class="clbl">AZ</div><div class="cnum" id="c-az">—</div><div class="cunit">g</div></div>
+          </div>
+        </div>
+
+        <div class="card" id="card-gyro">
+          <div class="imu-fault-overlay"><i class="ti ti-alert-triangle"></i>MPU6050 FAULT</div>
+          <div class="card-hdr"><div class="card-title"><i class="ti ti-rotate"></i>Gyroscope</div><span style="font-size:9px;color:var(--dim)">°/s</span></div>
+          <div class="brow"><span class="bax">GX</span><div class="btrack"><div class="bmid"></div><div class="bfill" id="b-gx" style="background:var(--green)"></div></div><span class="bnum" id="n-gx">—</span></div>
+          <div class="brow"><span class="bax">GY</span><div class="btrack"><div class="bmid"></div><div class="bfill" id="b-gy" style="background:var(--green)"></div></div><span class="bnum" id="n-gy">—</span></div>
+          <div class="brow"><span class="bax">GZ</span><div class="btrack"><div class="bmid"></div><div class="bfill" id="b-gz" style="background:var(--green)"></div></div><span class="bnum" id="n-gz">—</span></div>
+          <div class="divider"></div>
+          <div class="cells">
+            <div class="cell"><div class="clbl">GX</div><div class="cnum" id="c-gx">—</div><div class="cunit">°/s</div></div>
+            <div class="cell"><div class="clbl">GY</div><div class="cnum" id="c-gy">—</div><div class="cunit">°/s</div></div>
+            <div class="cell"><div class="clbl">GZ</div><div class="cnum" id="c-gz">—</div><div class="cunit">°/s</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hdr"><div class="card-title"><i class="ti ti-chart-radar"></i>Motion snapshot</div></div>
+          <div class="chart-wrap"><canvas id="ch-radar"></canvas></div>
+        </div>
+
+      </div>
+
+      <div class="charts-row">
+        <div class="card">
+          <div class="card-hdr">
+            <div class="card-title"><i class="ti ti-wave-sine"></i>Speed history</div>
+            <span class="card-val" id="cv-spd">— km/h</span>
+          </div>
+          <div class="chart-wrap"><canvas id="ch-spd"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-hdr">
+            <div class="card-title"><i class="ti ti-flame"></i>Temperature history</div>
+            <div class="leg">
+              <span><b style="background:var(--orange)"></b>DHT11</span>
+              <span><b style="background:var(--teal)"></b>DS18B20</span>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="ch-temp"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── State ── */
+const MAX=60;
+let chSpd,chTemp,chRadar;
+let sH=[],t1H=[],t2H=[],lH=[];
+let serialPort=null,demoId=null,keepReading=false;
+let packetCount=0,prevSpd=null;
+let prevFaults={mpu:null,dht:null,ds:null,spd:null};
+let toastTimer=null;
+const gc='rgba(255,255,255,0.05)',tc='#6b717a';
+
+/* ── Charts ── */
+function initCharts(){
+  const base={
+    responsive:true,maintainAspectRatio:false,animation:false,
+    plugins:{legend:{display:false},tooltip:{enabled:false}},
+    scales:{x:{display:false},y:{grid:{color:gc},border:{display:false},
+      ticks:{font:{size:9},color:tc,maxTicksLimit:4}}}
+  };
+  chSpd=new Chart(document.getElementById('ch-spd'),{
+    type:'line',
+    data:{labels:[],datasets:[{data:[],borderColor:'#3d8ef0',backgroundColor:'rgba(61,142,240,0.1)',
+      borderWidth:1.5,pointRadius:0,fill:true,tension:0.4}]},
+    options:{...cl(base),scales:{x:{display:false},y:{grid:{color:gc},border:{display:false},
+      ticks:{font:{size:9},color:tc,maxTicksLimit:4,callback:v=>Math.round(v)}}}}
+  });
+  chTemp=new Chart(document.getElementById('ch-temp'),{
+    type:'line',
+    data:{labels:[],datasets:[
+      {data:[],borderColor:'#f0943d',backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,fill:false,tension:0.4},
+      {data:[],borderColor:'#2ec4b6',backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,fill:false,tension:0.4,borderDash:[4,3]}
+    ]},
+    options:{...cl(base),scales:{x:{display:false},y:{grid:{color:gc},border:{display:false},
+      ticks:{font:{size:9},color:tc,maxTicksLimit:4,callback:v=>v.toFixed(1)+'°'}}}}
+  });
+  chRadar=new Chart(document.getElementById('ch-radar'),{
+    type:'radar',
+    data:{labels:['AX','AY','AZ','GX','GY','GZ'],
+      datasets:[{data:[0,0,0,0,0,0],borderColor:'#3d8ef0',backgroundColor:'rgba(61,142,240,0.12)',
+        borderWidth:1.5,pointBackgroundColor:'#3d8ef0',pointRadius:2}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:200},
+      plugins:{legend:{display:false},tooltip:{enabled:false}},
+      scales:{r:{ticks:{display:false},grid:{color:gc},angleLines:{color:gc},
+        pointLabels:{font:{size:9,weight:'700'},color:tc},suggestedMin:-3,suggestedMax:3}}}
+  });
+}
+function cl(o){return JSON.parse(JSON.stringify(o));}
+function rescaleY(c,v,p){if(!v.length)return;let mn=Math.min(...v),mx=Math.max(...v);if(mn===mx){mn-=1;mx+=1;}const d=(mx-mn)*p;c.options.scales.y.min=mn-d;c.options.scales.y.max=mx+d;}
+
+/* ── DOM helpers ── */
+function setText(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
+function setHTML(id,v){const e=document.getElementById(id);if(e)e.innerHTML=v;}
+function setW(id,pct){const e=document.getElementById(id);if(e)e.style.width=Math.max(0,Math.min(100,pct)).toFixed(1)+'%';}
+function push(arr,v){arr.push(v);if(arr.length>MAX)arr.shift();}
+function cls(id,add,rm){const e=document.getElementById(id);if(!e)return;if(add)e.classList.add(add);if(rm)e.classList.remove(rm);}
+
+/* ── Fault toast ── */
+function showToast(msg){
+  const t=document.getElementById('fault-toast');
+  document.getElementById('toast-msg').textContent=msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+/* ── CSV log buffer ── */
+const csvRows=[];
+const CSV_HEADER='time,speed_kmh,temp_c,hum_pct,ds_c,ax,ay,az,gx,gy,gz,mpu_tx,mpu_sen,dht_tx,dht_sen,ds_tx,ds_sen,spd_tx,spd_sen';
+
+function logCSV(d){
+  const now=new Date().toISOString();
+  csvRows.push([
+    now,
+    d.speed??'',d.temp??'',d.hum??'',d.ds!=null?d.ds.toFixed(2):'',
+    d.ax!=null?d.ax.toFixed(2):'',d.ay!=null?d.ay.toFixed(2):'',d.az!=null?d.az.toFixed(2):'',
+    d.gx!=null?d.gx.toFixed(2):'',d.gy!=null?d.gy.toFixed(2):'',d.gz!=null?d.gz.toFixed(2):'',
+    d.mpuStatus==='FAULT'?1:0, d.mpuSenFault?1:0,
+    d.dhtStatus==='FAULT'?1:0, d.dhtSenFault?1:0,
+    d.dsStatus ==='FAULT'?1:0, d.dsSenFault?1:0,
+    d.spdStatus==='FAULT'?1:0, d.spdSenFault?1:0
+  ].join(','));
+}
+
+function exportCSV(){
+  if(!csvRows.length){alert('No data to export yet.');return;}
+  const blob=new Blob([CSV_HEADER+'\n'+csvRows.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='can_log_'+new Date().toISOString().slice(0,19).replace(/:/g,'-')+'.csv';
+  a.click();URL.revokeObjectURL(a.href);
+}
+
+/* ── Sensor chips — two fault classes ── */
+// faultType: 'ok' | 'tx-fault' | 'sen-fault' | null
+function setSensor(chipId,stId,mcId,txFault,senFault,prevKey){
+  const chip=document.getElementById(chipId);
+  const sp=document.getElementById(stId);
+  const mc=mcId?document.getElementById(mcId):null;
+  if(!chip||!sp)return;
+
+  let cls='schip ', label='', mcFault=false;
+  if(txFault){
+    cls+='tx-fault'; label='TX FAULT'; mcFault=true;
+  } else if(senFault){
+    cls+='sen-fault'; label='SEN FAULT'; mcFault=true;
+  } else if(txFault===false && senFault===false){
+    cls+='ok'; label='OK';
+  } else {
+    label='—';
+  }
+  chip.className=cls;
+  sp.textContent=label;
+
+  if(mc){
+    if(mcFault) mc.classList.add('faulted');
+    else        mc.classList.remove('faulted');
+  }
+
+  // Toast on transition to any fault
+  const wasOk=prevFaults[prevKey]==='ok';
+  const nowFault=txFault||senFault;
+  if(wasOk && nowFault){
+    const names={mpu:'MPU6050',dht:'DHT11',ds:'DS18B20',spd:'SpeedECU'};
+    const type=txFault?'TX fault':'Sensor fault';
+    showToast(names[prevKey]+' — '+type);
+  }
+  prevFaults[prevKey]=(!txFault&&!senFault&&txFault!==null)?'ok':(txFault?'tx':senFault?'sen':null);
+}
+
+/* ── IMU fault overlay ── */
+function setImuFault(fault){
+  ['card-acc','card-gyro'].forEach(id=>{
+    const c=document.getElementById(id);
+    if(!c)return;
+    if(fault) c.classList.add('imu-faulted');
+    else      c.classList.remove('imu-faulted');
+  });
+}
+
+/* ── Bipolar bar ── */
+function bipolar(bid,nid,v,range){
+  const el=document.getElementById(bid);if(!el)return;
+  const pct=(v/range)*50;
+  if(pct>=0){el.style.left='50%';el.style.width=Math.min(pct,50)+'%';}
+  else{const w=Math.min(Math.abs(pct),50);el.style.left=(50-w)+'%';el.style.width=w+'%';}
+  setText(nid,v.toFixed(2));
+}
+
+/* ── Log row ── */
+function logRow(d){
+  const box=document.getElementById('log-box');
+  if(box.querySelector('.log-empty'))box.innerHTML='';
+  const now=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const p=[];
+  const hasFault=[d.mpuStatus,d.dhtStatus,d.dsStatus,d.spdStatus].some(s=>s==='FAULT');
+
+  if(d.speed!=null)p.push(`<span class="lv">Speed=${d.speed}</span>`);
+  if(d.temp!=null) p.push(`<span class="lv">TEMP=${d.temp}°C</span>`);
+  if(d.hum!=null)  p.push(`<span class="lv">HUM=${d.hum}%</span>`);
+  if(d.ds!=null)   p.push(`<span class="lv">DS=${d.ds.toFixed(2)}°C</span>`);
+  if(d.ax!=null)   p.push(`<span class="lv">AX=${d.ax.toFixed(2)}</span>`,`<span class="lv">AY=${d.ay.toFixed(2)}</span>`,`<span class="lv">AZ=${d.az.toFixed(2)}</span>`);
+  if(d.gx!=null)   p.push(`<span class="lv">GX=${d.gx.toFixed(2)}</span>`,`<span class="lv">GY=${d.gy.toFixed(2)}</span>`,`<span class="lv">GZ=${d.gz.toFixed(2)}</span>`);
+
+  // append fault labels — TX (red) or SEN (orange)
+  const faults=[];
+  if(d.mpuStatus==='FAULT')  faults.push(`<span class="lvf">MPU6050=TX-FAULT</span>`);
+  else if(d.mpuSenFault)     faults.push(`<span class="lvfo">MPU6050=SEN-FAULT</span>`);
+  if(d.dhtStatus==='FAULT')  faults.push(`<span class="lvf">DHT=TX-FAULT</span>`);
+  else if(d.dhtSenFault)     faults.push(`<span class="lvfo">DHT=SEN-FAULT</span>`);
+  if(d.dsStatus==='FAULT')   faults.push(`<span class="lvf">DS=TX-FAULT</span>`);
+  else if(d.dsSenFault)      faults.push(`<span class="lvfo">DS=SEN-FAULT</span>`);
+  if(d.spdStatus==='FAULT')  faults.push(`<span class="lvf">SpeedECU=TX-FAULT</span>`);
+  else if(d.spdSenFault)     faults.push(`<span class="lvfo">SpeedECU=SEN-FAULT</span>`);
+
+  if(!p.length&&!faults.length)return;
+  const row=document.createElement('div');
+  row.className='log-row'+(hasFault?' has-fault':'');
+  row.innerHTML=`<span class="log-time">${now}</span><span>${[...p,...faults].join('<span class="ls"> · </span>')}</span>`;
+  box.appendChild(row);
+  while(box.children.length>40)box.removeChild(box.firstChild);
+  box.scrollTop=box.scrollHeight;
+}
+
+/* ── Main update ── */
+function updateUI(d){
+  const now=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  let any=false;
+
+  // Sensor fault detection — zero values = disconnected sensor
+  if(d.ax!=null && d.ay!=null && d.az!=null && d.gx!=null && d.gy!=null && d.gz!=null)
+    d.mpuSenFault=(d.ax===0&&d.ay===0&&d.az===0&&d.gx===0&&d.gy===0&&d.gz===0);
+  if(d.temp!=null && d.hum!=null)
+    d.dhtSenFault=(d.temp===0&&d.hum===0);
+  if(d.ds!=null)
+    d.dsSenFault=(d.ds===0);
+  if(d.speed!=null)
+    d.spdSenFault=(d.speed===0);
+
+  const mpuTx=d.mpuStatus==='FAULT', dhtTx=d.dhtStatus==='FAULT',
+        dsTx=d.dsStatus==='FAULT',   spdTx=d.spdStatus==='FAULT';
+
+  if(d.mpuStatus!=null||d.mpuSenFault!=null){
+    setSensor('sc-mpu','st-mpu',null,     mpuTx, d.mpuSenFault??false,'mpu');
+    setImuFault(mpuTx||d.mpuSenFault);
+    any=true;
+  }
+  if(d.dhtStatus!=null||d.dhtSenFault!=null){
+    setSensor('sc-dht','st-dht','mc-temp',dhtTx, d.dhtSenFault??false,'dht');
+    // also mirror to humidity card
+    const mcH=document.getElementById('mc-hum');
+    if(mcH){ if(dhtTx||d.dhtSenFault) mcH.classList.add('faulted'); else mcH.classList.remove('faulted'); }
+    any=true;
+  }
+  if(d.dsStatus!=null||d.dsSenFault!=null){
+    setSensor('sc-ds','st-ds','mc-ds',    dsTx,  d.dsSenFault??false, 'ds');  any=true;
+  }
+  if(d.spdStatus!=null||d.spdSenFault!=null){
+    setSensor('sc-spd','st-spd','mc-spd', spdTx, d.spdSenFault??false,'spd'); any=true;
+  }
+
+  if(d.speed!=null){
+    any=true;
+    setText('v-spd',d.speed);setText('cv-spd',d.speed+' km/h');
+    setW('p-spd',Math.min(100,(d.speed/200)*100));
+    if(prevSpd!=null){
+      const diff=d.speed-prevSpd;
+      const col=diff>0?'var(--green)':diff<0?'var(--red)':'var(--muted)';
+      const ico=diff>0?'ti-trending-up':diff<0?'ti-trending-down':'ti-minus';
+      setHTML('f-spd',`<i class="ti ${ico}" style="font-size:10px;color:${col}"></i>&nbsp;<span style="color:${col}">${diff>0?'+':''}${diff} km/h</span>`);
+    }
+    prevSpd=d.speed;
+    push(sH,d.speed);push(lH,now);
+    chSpd.data.labels=[...lH];chSpd.data.datasets[0].data=[...sH];
+    rescaleY(chSpd,sH,0.15);chSpd.update('none');
+  }
+  if(d.temp!=null){
+    any=true;
+    setText('v-temp',d.temp);
+    setW('p-temp',Math.min(100,(d.temp/60)*100));
+    setText('f-hum','Humidity '+(d.hum??'—')+'%');
+    push(t1H,d.temp);
+    chTemp.data.labels=[...lH.slice(-Math.max(t1H.length,t2H.length))];
+    chTemp.data.datasets[0].data=[...t1H];
+    rescaleY(chTemp,[...t1H,...t2H],0.2);chTemp.update('none');
+  }
+  if(d.hum!=null){any=true;setText('v-hum',d.hum);setW('p-hum',d.hum);}
+  if(d.ds!=null){
+    any=true;
+    setText('v-ds',d.ds.toFixed(2));
+    setW('p-ds',Math.min(100,(d.ds/60)*100));
+    push(t2H,parseFloat(d.ds.toFixed(2)));
+    chTemp.data.datasets[1].data=[...t2H];
+    rescaleY(chTemp,[...t1H,...t2H],0.2);chTemp.update('none');
+  }
+  if(d.ax!=null){
+    any=true;
+    bipolar('b-ax','n-ax',d.ax,2);bipolar('b-ay','n-ay',d.ay,2);bipolar('b-az','n-az',d.az,2);
+    setText('c-ax',d.ax.toFixed(2));setText('c-ay',d.ay.toFixed(2));setText('c-az',d.az.toFixed(2));
+  }
+  if(d.gx!=null){
+    any=true;
+    bipolar('b-gx','n-gx',d.gx,5);bipolar('b-gy','n-gy',d.gy,5);bipolar('b-gz','n-gz',d.gz,5);
+    setText('c-gx',d.gx.toFixed(2));setText('c-gy',d.gy.toFixed(2));setText('c-gz',d.gz.toFixed(2));
+    if(d.ax!=null){
+      chRadar.data.datasets[0].data=[+d.ax.toFixed(2),+d.ay.toFixed(2),+d.az.toFixed(2),
+        +(d.gx/5).toFixed(2),+(d.gy/5).toFixed(2),+(d.gz/5).toFixed(2)];
+      chRadar.update('none');
+    }
+  }
+  if(any){packetCount++;logRow(d);logCSV(d);setText('log-stats','Packets: '+packetCount);}
+}
+
+/* ── Parser — matches new firmware format:
+   Speed=%d km/h SpeedECU=%s  (km/h instead of rpm)
+   print loop runs in while(1) every 500ms  ── */
+function parseBlock(txt){
+  const d={};let m;
+  m=txt.match(/AX\s*=\s*([-\d.]+)\s+AY\s*=\s*([-\d.]+)\s+AZ\s*=\s*([-\d.]+)/i);
+  if(m){d.ax=+m[1];d.ay=+m[2];d.az=+m[3];}
+  m=txt.match(/GX\s*=\s*([-\d.]+)\s+GY\s*=\s*([-\d.]+)\s+GZ\s*=\s*([-\d.]+)/i);
+  if(m){d.gx=+m[1];d.gy=+m[2];d.gz=+m[3];}
+  m=txt.match(/MPU6050\s*=\s*(OK|FAULT)/i);if(m)d.mpuStatus=m[1].toUpperCase();
+  m=txt.match(/TEMP\s*=\s*(-?\d+)\s*C\s+HUM\s*=\s*(-?\d+)\s*%\s+DHT\s*=\s*(OK|FAULT)/i);
+  if(m){d.temp=+m[1];d.hum=+m[2];d.dhtStatus=m[3].toUpperCase();}
+  m=txt.match(/DS18B20\s*=\s*([-\d.]+)\s*C\s+DS\s*=\s*(OK|FAULT)/i);
+  if(m){d.ds=+m[1];d.dsStatus=m[2].toUpperCase();}
+  // ← km/h unit now
+  m=txt.match(/Speed\s*=\s*(-?\d+)\s*km\/h\s+SpeedECU\s*=\s*(OK|FAULT)/i);
+  if(m){d.speed=+m[1];d.spdStatus=m[2].toUpperCase();}
+  return d;
+}
+
+/* ── Connection ── */
+function setConnState(s){
+  const pill=document.getElementById('conn-pill');
+  const dot=document.getElementById('conn-dot');
+  pill.className='spill '+s;
+  dot.className='pdot'+(s==='live'?' blink':'');
+  setText('conn-txt',s==='live'?'Live':s==='error'?'Error':'Demo');
+  setText('btn-txt',s==='live'?'Disconnect':'Connect serial');
+  document.getElementById('conn-btn').className='cbtn'+(s==='live'?' on':'');
+}
+
+async function doConnect(){
+  if(serialPort){
+    keepReading=false;try{await serialPort.close();}catch(e){}
+    serialPort=null;setConnState('demo');startDemo();return;
+  }
+  if(!navigator.serial){setConnState('error');alert('Web Serial not supported. Use Chrome/Edge desktop.');return;}
+  try{
+    serialPort=await navigator.serial.requestPort();
+    await serialPort.open({baudRate:115200});
+    setConnState('live');stopDemo();
+    document.getElementById('log-box').innerHTML='';
+    packetCount=0;setText('log-stats','packets: 0');
+    sH=[];t1H=[];t2H=[];lH=[];prevSpd=null;prevFaults={mpu:null,dht:null,ds:null,spd:null};
+    keepReading=true;readSerial();
+  }catch(e){if(e.name!=='NotFoundError')setConnState('error');console.error(e);}
+}
+
+async function readSerial(){
+  let buf='';
+  while(serialPort&&keepReading){
+    let reader;
+    try{reader=serialPort.readable.getReader();}catch(e){break;}
+    try{
+      while(keepReading){
+        const{value,done}=await reader.read();
+        if(done)break;
+        if(value&&value.length){
+          buf+=new TextDecoder().decode(value);
+          const blocks=buf.split(/\r?\n\r?\n/);
+          buf=blocks.pop();
+          for(const b of blocks){if(b.trim())updateUI(parseBlock(b));}
+        }
+      }
+    }catch(e){console.error(e);}
+    finally{try{reader.releaseLock();}catch(e){}}
+    if(!keepReading)break;
+  }
+}
+
+/* ── Demo — simulates timeout faults periodically ── */
+function startDemo(){
+  if(demoId)return;
+  let tick=0, faultCycle=0;
+  demoId=setInterval(()=>{
+    tick++;faultCycle++;
+    const t=tick*0.1;
+    const n=(a)=>+(a+(Math.random()-.5)*0.08).toFixed(2);
+    const g=(a)=>+(a+(Math.random()-.5)*0.4).toFixed(2);
+
+    // Simulate a brief DS18B20 fault every ~30 packets
+    const dsFault = faultCycle>28 && faultCycle<32;
+    if(faultCycle>=35)faultCycle=0;
+
+    // dsFault = TX fault (no frame); mpuSenFault = sensor fault (zero values)
+    const mpuSenFault = faultCycle>20 && faultCycle<24;
+    updateUI({
+      speed:60+Math.round(Math.sin(t)*5+Math.random()*2-1), spdStatus:'OK',
+      temp:23, hum:63, dhtStatus:'OK',
+      ds:+(24.87+(Math.sin(t*0.3)*0.12)).toFixed(2), dsStatus: dsFault?'FAULT':'OK',
+      ax: mpuSenFault?0:n(0.00), ay: mpuSenFault?0:n(-0.02), az: mpuSenFault?0:n(1.06),
+      gx: mpuSenFault?0:g(-0.96), gy: mpuSenFault?0:g(1.18), gz: mpuSenFault?0:g(-1.87),
+      mpuStatus:'OK'
+    });
+  },500);
+}
+function stopDemo(){clearInterval(demoId);demoId=null;}
+
+window.addEventListener('load',()=>{initCharts();startDemo();});
+</script>
+</body>
+</html>

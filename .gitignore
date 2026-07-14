@@ -1,0 +1,16 @@
+# STM32CubeIDE
+Debug/
+Release/
+*.launch
+.settings/
+.metadata/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
