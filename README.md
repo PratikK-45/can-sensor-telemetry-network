@@ -1,8 +1,7 @@
 # CAN Sensor Telemetry Network
 
 STM32-based sensor telemetry ECUs publishing periodic data over a shared CAN
-bus, with a Raspberry Pi 5 acting as a CAN-to-Ethernet gateway. Built against
-the "Sensor Telemetry Node ECU" project SOP in `docs/Project_SOP.pdf`.
+bus, with a Raspberry Pi 5 acting as a CAN-to-Ethernet gateway.
 
 ## Hardware
 
@@ -32,18 +31,11 @@ docs/               Original project SOP
 
 | CAN ID | Node     | DLC | Bytes                                  |
 |--------|----------|-----|-----------------------------------------|
-| 0x100  | MPU6050  | 6   | AX_hi, AX_lo, AY_hi, AY_lo, AZ_hi, AZ_lo (int16, x100 scale, m/s²) |
-| 0x101  | MPU6050  | 6   | GX_hi, GX_lo, GY_hi, GY_lo, GZ_hi, GZ_lo (int16, x100 scale, deg/s) |
-| 0x201  | DHT11    | 2   | Temp (°C, uint8), Humidity (%, uint8)  |
-| 0x301  | DS18B20  | 3   | Temp_hi, Temp_lo (int16, x100 scale, °C), Fault (0/1) |
-| 0x401  | Speed    | 2   | Speed_hi, Speed_lo (uint16, km/h)      |
-
-**Known gap (not yet fixed in this snapshot):** the MPU6050 node does not
-transmit a fault byte, and the DHT11 node computes a fault flag but never
-places it in `TxData`, so it's silently dropped. The Receiver node currently
-infers node health only from bus-silence timeouts (>1s since last frame),
-not from sensor-reported faults. Happy to patch this if/when you want it —
-ask and I'll wire it through firmware + Receiver decode together.
+| 0x100  | MPU6050  | 6   | AX_hi, AX_lo, AY_hi, AY_lo, AZ_hi, AZ_lo (m/s²) |
+| 0x101  | MPU6050  | 6   | GX_hi, GX_lo, GY_hi, GY_lo, GZ_hi, GZ_lo (deg/s) |
+| 0x201  | DHT11    | 2   | Temp (°C), Humidity (%) |
+| 0x301  | DS18B20  | 2   | Temp_hi, Temp_lo (°C) |
+| 0x401  | Speed    | 2   | Speed_hi, Speed_lokm/h)      |
 
 ## Data path
 
