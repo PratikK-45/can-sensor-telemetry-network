@@ -146,6 +146,17 @@ The system periodically transmits:
 
 ---
 
+# 📑 CAN Frame Mapping
+
+| CAN ID | ECU | Payload |
+|---------|------|-----------------------------|
+| 0x100 | MPU6050 | AX AY AZ |
+| 0x101 | MPU6050 | GX GY GZ |
+| 0x201 | DHT11 | Temperature Humidity |
+| 0x301 | DS18B20 | Temperature |
+| 0x401 | Speed ECU | Vehicle Speed |
+
+
 # 📦 Telemetry Features
 
 ✔ Fixed Transmission Format
@@ -221,40 +232,6 @@ The dashboard provides:
 
 ---
 
-# 📂 Repository Structure
-
-```
-
-can-sensor-telemetry-network/
-
-├── firmware/
-│
-├── mpu6050_node/
-├── dht11_node/
-├── ds18b20_node/
-├── speed_node/
-├── receiver_node/
-│
-├── gateway/
-│
-├── can_udp_gateway.py
-├── mcp2515.py
-├── config.py
-│
-├── dashboard/
-│
-├── Receiver.py
-├── can_dashboard_v9.html
-│
-├── block_diagram.png
-│
-├── README.md
-└── LICENSE
-
-```
-
----
-
 ## Dashboard
 
 - Live CAN Stream
@@ -281,22 +258,113 @@ The project was validated for:
 - Continuous Runtime
 
 ---
+---
 
-# 🎓 Learning Outcomes
+# 📷 Project Demonstration
 
-Through this project, the following concepts were implemented:
-
-- Embedded C Programming
-- STM32 HAL Development
-- CAN Protocol
-- Multi-ECU Communication
-- Sensor Interfacing
-- Raspberry Pi Integration
-- MCP2515 CAN Controller
-- UDP Networking
-- Ethernet Communication
-- Real-Time Dashboard Development
-- Fault Detection
-- Automotive Embedded System Design
+The following images showcase the successful implementation and validation of the **CAN Sensor Telemetry Network** on actual hardware. The system was tested using five STM32F446RE ECUs, a Raspberry Pi 5 acting as a CAN-to-Ethernet gateway, and a real-time monitoring dashboard.
 
 ---
+
+## 🔧 Hardware Setup
+
+The prototype consists of five STM32F446RE Nucleo boards connected through the CAN Bus. Each board acts as a dedicated ECU responsible for sensor acquisition or telemetry processing.
+
+**ECU Configuration:**
+- **ECU-1:** MPU6050 (Accelerometer & Gyroscope)
+- **ECU-2:** DHT11 (Temperature & Humidity)
+- **ECU-3:** DS18B20 Temperature Sensor
+- **ECU-4:** Speed ECU (Raw Speed Data)
+- **ECU-5:** Receiver ECU
+
+The Receiver ECU validates incoming CAN frames and forwards the telemetry to the Raspberry Pi 5 through the MCP2515 CAN controller.
+
+<p align="center">
+    <img src="images/hardware_setup.jpg" width="850">
+</p>
+
+---
+
+## 🌐 CAN-to-Ethernet Gateway
+
+The Raspberry Pi 5 functions as a **CAN-to-Ethernet Gateway**. It receives CAN frames through the MCP2515 CAN controller, encapsulates the telemetry into UDP packets, and transmits them over Ethernet to the monitoring PC.
+
+<p align="center">
+    <img src="images/pi_gateway.jpg" width="700">
+</p>
+
+---
+
+## 📊 Real-Time Dashboard
+
+A custom web dashboard was developed to visualize telemetry received from all ECUs in real time.
+
+**Dashboard Features:**
+- Live CAN Stream
+- Vehicle Speed
+- MPU6050 Accelerometer & Gyroscope
+- Temperature & Humidity
+- DS18B20 Temperature
+- Motion Snapshot
+- Historical Graphs
+- Sensor Health Monitoring
+
+The image below shows the system operating normally with all ECUs transmitting valid telemetry.
+
+<p align="center">
+    <img src="images/dashboard_normal.png" width="1000">
+</p>
+
+---
+
+## ⚠ Sensor Fault Detection
+
+To improve system reliability, the Receiver ECU continuously monitors sensor health. If a sensor fails or produces invalid data, a fault flag is embedded into the telemetry while the remaining ECUs continue transmitting without interruption.
+
+The image below demonstrates a **DS18B20 Sensor Fault**, where the dashboard clearly identifies the failed sensor while maintaining continuous telemetry from the other ECUs.
+
+<p align="center">
+    <img src="images/dashboard_sensor_fault.png" width="1000">
+</p>
+
+---
+
+## 🚨 CAN Transmission Fault Detection
+
+The Receiver ECU also detects communication failures from individual ECUs. If an ECU stops transmitting valid CAN frames, the system generates a transmission fault while continuing normal operation for the remaining nodes.
+
+The dashboard below shows a **DS18B20 Transmission (TX) Fault** detected during runtime.
+
+<p align="center">
+    <img src="images/dashboard_tx_fault.png" width="1000">
+</p>
+
+---
+
+## 🧪 Complete System Validation
+
+The complete prototype was successfully validated on actual hardware.
+
+**Successfully Demonstrated:**
+
+- ✅ Multi-ECU CAN Communication
+- ✅ Real-Time Sensor Telemetry
+- ✅ Receiver ECU Implementation
+- ✅ Raspberry Pi 5 CAN-to-Ethernet Gateway
+- ✅ UDP Communication over Ethernet
+- ✅ Live Web Dashboard
+- ✅ Sensor Fault Detection
+- ✅ CAN Transmission Fault Detection
+- ✅ Continuous System Operation
+
+The image below shows the complete end-to-end implementation during live testing.
+
+<p align="center">
+    <img src="images/full_system.jpg" width="900">
+</p>
+
+---
+
+# 🎯 Conclusion
+
+This project successfully demonstrates a distributed automotive sensor telemetry network using five STM32F446RE-based ECUs communicating over the CAN Bus. A Raspberry Pi 5 equipped with an MCP2515 CAN controller serves as a CAN-to-Ethernet gateway, forwarding telemetry to a remote PC over UDP for real-time monitoring. The implementation validates reliable multi-node communication, fault-tolerant telemetry transmission, and live visualization through a custom dashboard, closely resembling the architecture of modern automotive embedded systems.
