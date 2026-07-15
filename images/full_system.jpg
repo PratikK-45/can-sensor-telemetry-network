@@ -1,1 +1,22 @@
+## 🧪 Complete System Validation
 
+The complete Automotive Sensor Telemetry Network was validated on actual hardware.
+
+The prototype successfully demonstrates:
+
+- Multi-ECU CAN Communication
+- Real-Time Sensor Acquisition
+- Receiver ECU
+- Raspberry Pi 5 Gateway
+- CAN-to-Ethernet Conversion
+- UDP Communication
+- Real-Time Dashboard
+- Sensor Fault Detection
+- CAN Transmission Fault Detection
+- Continuous System Operation
+
+The image below shows the complete end-to-end implementation during live testing.
+
+<p align="center">
+    <img src="images/full_system.jpg" width="900">
+</p>
