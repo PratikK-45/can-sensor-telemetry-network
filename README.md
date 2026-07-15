@@ -1,79 +1,302 @@
-# CAN Sensor Telemetry Network
+# 🚗 CAN Sensor Telemetry Network
+A real-time automotive communication system that simulates multiple (ECUs) communicating over a Controller Area Network (CAN) Bus. The project collects sensor data from different ECUs, transmits it to a central receiver, detects abnormal CAN traffic, and forwards the received data over Ethernet using UDP for remote monitoring.
 
-STM32-based sensor telemetry ECUs publishing periodic data over a shared CAN
-bus, with a Raspberry Pi 5 acting as a CAN-to-Ethernet gateway.
+---
 
-## Hardware
+# 📖 Overview
 
-- 5x STM32 Nucleo-F446RE, each with an SN65HVD230 CAN transceiver, wired onto
-  one shared CAN bus (500 kbps)
-- 1x MPU6050 (I2C) — accelerometer + gyroscope
-- 1x DHT11 — temperature + humidity
-- 1x DS18B20 (1-Wire) — temperature
-- 1x Raspberry Pi 5 with an MCP2515 CAN controller (SPI, direct driver — no
-  SocketCAN) acting as a CAN → UDP Ethernet gateway
+This project implements a distributed **Automotive Sensor Telemetry Network** that simulates how multiple Electronic Control Units (ECUs) communicate in modern vehicles.
 
-## Repo layout
+Five STM32F446RE-based ECUs acquire real-time sensor data and exchange telemetry over the **Controller Area Network (CAN)**. A dedicated Receiver ECU collects and validates the incoming CAN messages before forwarding them to a **Raspberry Pi 5**.
+
+Using an **MCP2515 CAN Controller**, the Raspberry Pi acts as a **CAN-to-Ethernet Gateway**, converting CAN telemetry into UDP packets and transmitting them over Ethernet to a remote PC.
+
+The received telemetry is visualized through a real-time web dashboard, providing live sensor monitoring, system health, fault indication, and data visualization.
+
+---
+
+# 🎯 Problem Statement
+
+Design and implement a distributed sensor telemetry subsystem capable of acquiring physical sensor data from multiple embedded nodes and periodically publishing the telemetry to an external monitoring system using a fixed and reliable communication format.
+
+The system should operate continuously, tolerate sensor failures without interrupting communication, and emulate the architecture used in modern automotive embedded systems.
+
+---
+
+# 🚀 Project Objectives
+
+- Develop multiple STM32-based Sensor ECUs
+- Acquire real-time sensor data
+- Transmit periodic telemetry over CAN Bus
+- Implement a dedicated Receiver ECU
+- Build a CAN-to-Ethernet Gateway using Raspberry Pi 5
+- Transfer telemetry using UDP over Ethernet
+- Design a real-time monitoring dashboard
+- Implement sensor fault detection and reporting
+- Demonstrate continuous system operation without interruption
+
+---
+
+# 🏗 System Architecture
 
 ```
-firmware/
-  mpu6050_node/     STM32 node: IMU (accel + gyro), CAN IDs 0x100 / 0x101
-  dht11_node/       STM32 node: temp + humidity, CAN ID 0x201
-  ds18b20_node/     STM32 node: temperature, CAN ID 0x301
-  speed_node/       STM32 node: simulated speed value, CAN ID 0x401
-  receiver_node/    STM32 node: listens to the whole bus, prints status over UART
-gateway/            Raspberry Pi: MCP2515 SPI driver + CAN->UDP gateway script
-dashboard/          Two independent visualization options (see below)
-docs/               Original project SOP
+
+MPU6050 ECU
+│
+├──────────────┐
+│
+DHT11 ECU
+│
+├──────────────┤
+│
+DS18B20 ECU
+│
+├──────────────┤
+│
+Speed ECU
+│
+└──────────────┘
+
+↓
+
+CAN BUS
+
+↓
+
+Receiver ECU
+(STM32F446RE)
+
+↓
+
+SPI
+
+↓
+
+MCP2515 CAN Controller
+
+↓
+
+Raspberry Pi 5
+(CAN-to-Ethernet Gateway)
+
+↓
+
+UDP over Ethernet
+
+↓
+
+Remote PC
+
+↓
+
+Python Receiver
+
+↓
+
+Web Dashboard
+
 ```
 
-## CAN frame map
+---
 
-| CAN ID | Node     | DLC | Bytes                                  |
-|--------|----------|-----|-----------------------------------------|
-| 0x100  | MPU6050  | 6   | AX_hi, AX_lo, AY_hi, AY_lo, AZ_hi, AZ_lo (m/s²) |
-| 0x101  | MPU6050  | 6   | GX_hi, GX_lo, GY_hi, GY_lo, GZ_hi, GZ_lo (deg/s) |
-| 0x201  | DHT11    | 2   | Temp (°C), Humidity (%) |
-| 0x301  | DS18B20  | 2   | Temp_hi, Temp_lo (°C) |
-| 0x401  | Speed    | 2   | Speed_hi, Speed_lokm/h)      |
+# ⚙ Hardware Components
 
-## Data path
+| Component | Purpose |
+|------------|----------|
+| STM32F446RE (5 Boards) | Sensor ECUs + Receiver ECU |
+| MPU6050 | Accelerometer & Gyroscope |
+| DHT11 | Temperature & Humidity |
+| DS18B20 | Digital Temperature Sensor |
+| MCP2515 | CAN Controller |
+| Raspberry Pi 5 | CAN-to-Ethernet Gateway |
+| SN65HVD230 | CAN Transceiver |
+| Ethernet Network | Data Transmission |
+| PC | Dashboard & Monitoring |
 
-Two independent, parallel ways to view the telemetry:
+---
 
-1. **STM32 Receiver node → USB-UART → `dashboard/can_dashboard_v9.html`**
-   (Chrome/Edge, Web Serial API — connect directly, no Pi involved)
-2. **Raspberry Pi 5 (MCP2515) → UDP/Ethernet → `dashboard/Receiver.py`**
-   (Tkinter GUI on your laptop, listens on UDP port 5000)
+# 📡 ECU Configuration
 
-## Building the firmware
+| ECU | Function |
+|------|----------|
+| ECU-1 | MPU6050 Sensor Node |
+| ECU-2 | DHT11 Sensor Node |
+| ECU-3 | DS18B20 Sensor Node |
+| ECU-4 | Speed Data Node |
+| ECU-5 | Receiver ECU |
 
-Each folder under `firmware/` is a `Core/Src` + `Core/Inc` pair meant to be
-dropped into an STM32CubeIDE project generated for the Nucleo-F446RE with
-the matching peripherals enabled (CAN1, plus I2C1 for the MPU6050/receiver
-nodes, or TIM2 for the bit-banged DHT11/DS18B20 nodes). Regenerate the
-CubeMX boilerplate for each node, then replace `Core/Src/main.c` (and
-add the sensor driver files) with the versions here.
+---
 
-## Running the gateway (Raspberry Pi)
+# 📊 Sensor Telemetry
 
-```bash
-pip3 install spidev
-# edit gateway/config.py -> set LAPTOP_IP to your laptop's IP
-python3 gateway/can_udp_gateway.py
+The system periodically transmits:
+
+- Accelerometer X
+- Accelerometer Y
+- Accelerometer Z
+- Gyroscope X
+- Gyroscope Y
+- Gyroscope Z
+- Temperature
+- Humidity
+- DS18B20 Temperature
+- Vehicle Speed
+- Sensor Status
+- Fault Status
+
+---
+
+# 📦 Telemetry Features
+
+✔ Fixed Transmission Format
+
+✔ Periodic Data Publishing
+
+✔ Consistent Data Scaling
+
+✔ Continuous Transmission
+
+✔ Automatic Startup
+
+✔ Multi-node Communication
+
+✔ Real-time Monitoring
+
+---
+
+# ⚠ Fault Behaviour
+
+The system implements fault-tolerant telemetry.
+
+If any sensor fails,
+
+- Telemetry continues uninterrupted.
+- Remaining sensor values are transmitted normally.
+- A fault flag is added to the telemetry frame.
+- The dashboard immediately indicates the failed sensor.
+
+Example:
+
 ```
 
-## Running the Tkinter dashboard (laptop)
+DS18B20
+Status : SENSOR FAULT
 
-```bash
-python3 dashboard/Receiver.py
 ```
 
-## Opening the web dashboard
+The system never hangs or stops transmitting due to a sensor failure.
 
-Open `dashboard/can_dashboard_v9.html` in Chrome or Edge, click connect, and
-select the Receiver node's serial port.
+---
 
-## License
+# 🌐 CAN-to-Ethernet Gateway
 
-MIT — see `LICENSE`.
+The Raspberry Pi 5 functions as the communication gateway.
+
+Responsibilities include:
+
+- Reading CAN frames through MCP2515
+- Decoding telemetry
+- Creating UDP packets
+- Transmitting telemetry over Ethernet
+- Maintaining continuous communication with the monitoring PC
+
+---
+
+# 📈 Dashboard Features
+
+The dashboard provides:
+
+- Live CAN Stream
+- Sensor Status
+- Vehicle Speed
+- Accelerometer Visualization
+- Gyroscope Visualization
+- Motion Radar Graph
+- Speed History
+- Temperature History
+- Humidity Display
+- Sensor Fault Alerts
+- Connection Status
+- CSV Export
+
+---
+
+# 📂 Repository Structure
+
+```
+
+can-sensor-telemetry-network/
+
+├── firmware/
+│
+├── mpu6050_node/
+├── dht11_node/
+├── ds18b20_node/
+├── speed_node/
+├── receiver_node/
+│
+├── gateway/
+│
+├── can_udp_gateway.py
+├── mcp2515.py
+├── config.py
+│
+├── dashboard/
+│
+├── Receiver.py
+├── can_dashboard_v9.html
+│
+├── block_diagram.png
+│
+├── README.md
+└── LICENSE
+
+```
+
+---
+
+## Dashboard
+
+- Live CAN Stream
+- Speed Graph
+- Temperature Graph
+- Motion Snapshot
+- Sensor Health
+- Fault Alerts
+
+---
+
+# 🧪 Testing
+
+The project was validated for:
+
+- Multi-node CAN Communication
+- Sensor Acquisition
+- Continuous Telemetry
+- Receiver Validation
+- Gateway Communication
+- UDP Transmission
+- Dashboard Visualization
+- Fault Behaviour
+- Continuous Runtime
+
+---
+
+# 🎓 Learning Outcomes
+
+Through this project, the following concepts were implemented:
+
+- Embedded C Programming
+- STM32 HAL Development
+- CAN Protocol
+- Multi-ECU Communication
+- Sensor Interfacing
+- Raspberry Pi Integration
+- MCP2515 CAN Controller
+- UDP Networking
+- Ethernet Communication
+- Real-Time Dashboard Development
+- Fault Detection
+- Automotive Embedded System Design
+
+---
