@@ -336,7 +336,7 @@ The dashboard below shows a **DS18B20 Transmission (TX) Fault** detected during 
 The Raspberry Pi 5 functions as a **CAN-to-Ethernet Gateway**. It receives CAN frames through the MCP2515 CAN controller, encapsulates the telemetry into UDP packets, and transmits them over Ethernet to the monitoring PC.
 
 <p align="center">
-    <img src="images/pi_gateway2.pg" width="700">
+    <img src="images/pi_gateway2.png" width="700">
 </p>
 
 ---
