@@ -280,17 +280,7 @@ The prototype consists of five STM32F446RE Nucleo boards connected through the C
 The Receiver ECU validates incoming CAN frames and forwards the telemetry to the Raspberry Pi 5 through the MCP2515 CAN controller.
 
 <p align="center">
-    <img src="images/hardware_setup.jpg" width="850">
-</p>
-
----
-
-## 🌐 CAN-to-Ethernet Gateway
-
-The Raspberry Pi 5 functions as a **CAN-to-Ethernet Gateway**. It receives CAN frames through the MCP2515 CAN controller, encapsulates the telemetry into UDP packets, and transmits them over Ethernet to the monitoring PC.
-
-<p align="center">
-    <img src="images/pi_gateway.jpg" width="700">
+    <img src="images/Hardware_setup.png" width="850">
 </p>
 
 ---
@@ -337,6 +327,16 @@ The dashboard below shows a **DS18B20 Transmission (TX) Fault** detected during 
 
 <p align="center">
     <img src="images/dashboard_tx_fault.png" width="1000">
+</p>
+
+---
+
+## 🌐 CAN-to-Ethernet Gateway
+
+The Raspberry Pi 5 functions as a **CAN-to-Ethernet Gateway**. It receives CAN frames through the MCP2515 CAN controller, encapsulates the telemetry into UDP packets, and transmits them over Ethernet to the monitoring PC.
+
+<p align="center">
+    <img src="images/pi_gateway2.pg" width="700">
 </p>
 
 ---
