@@ -360,7 +360,7 @@ The complete prototype was successfully validated on actual hardware.
 The image below shows the complete end-to-end implementation during live testing.
 
 <p align="center">
-    <img src="images/full_system.jpg" width="900">
+    <img src="images/full_system.png" width="900">
 </p>
 
 ---
